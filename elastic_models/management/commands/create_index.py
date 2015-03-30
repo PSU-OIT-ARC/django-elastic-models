@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from elastic_models.management.commands import IndexCommand
 
 class Command(IndexCommand):

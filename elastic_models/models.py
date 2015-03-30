@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from django.db import models
 from django.conf import settings
 from django.template.loader import render_to_string
