@@ -10,6 +10,8 @@ Management commands (create_index and update_index)
 Django signal receivers for updating data
 
 Usage:
+Add ‘elastic_models’ to INSTALLED_APPS
+
 You must define ELASTICSEARCH_CONNECTIONS in your django settings.
 
 For example:
@@ -19,6 +21,9 @@ ELASTICSEARCH_CONNECTIONS = {
         'INDEX_NAME': {{ INDEX_NAME }}
     }
 }
+
+In order to create a test search index you must add to yoursettings.py:
+TEST_RUNNER = 'elastic_models.tests.DefaultSearchRunner'
 
 using SearchMixin and Search inner-class:
 

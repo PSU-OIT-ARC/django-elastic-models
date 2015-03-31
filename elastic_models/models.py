@@ -1,11 +1,16 @@
+from __future__ import absolute_import
 from __future__ import print_function
+import six
 
-from django.db import models
-from django.conf import settings
 from django.template.loader import render_to_string
+from django.conf import settings
+from django.db import models
+from django.db.models.loading import get_model
+
 from elasticsearch import Elasticsearch, NotFoundError
 from elasticsearch.helpers import bulk
 import elasticsearch_dsl as dsl
+
 
 class SearchField(object):
     mapping = None
@@ -49,10 +54,9 @@ class StringField(AttributeField):
     def get_from_instance(self, instance):
         value = super(StringField, self).get_from_instance(instance)
         try:
-            return str(value)
-        except:
-            print(self.path, ": ", repr(value))
-            raise
+            return six.text_type(value)
+        except Exception as e:
+            six.reraise(Exception, e)
 
 class MultiField(AttributeField):
     def get_from_instance(self, instance):
@@ -108,7 +112,14 @@ class SearchMixin(object):
                 return "%s_%s" % (self.model._meta.app_label, self.model._meta.model_name)
 
         def get_dependencies(self):
-            return self.dependencies
+            dependencies = self.dependencies
+            for model, query in dependencies.items():
+                if isinstance(model, six.string_types):
+                    (app_name, model_name) = model.split('.')
+                    model_cls = get_model(app_name, model_name)
+                    dependencies.pop(model)
+                    dependencies[model_cls] = query
+            return dependencies
 
         def get_es(self):
             return Elasticsearch(settings.ELASTICSEARCH_CONNECTIONS[self.connection]['HOSTS'])

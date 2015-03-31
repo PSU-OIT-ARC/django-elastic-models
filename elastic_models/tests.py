@@ -55,9 +55,9 @@ class SearchPostSaveTestCase(ServiceTestCaseMixin, test.TestCase):
         self.refresh_index()
         self.assertEqual(TestModel.search.count(), 1)
 
-class DefaultRunner(DiscoverRunner):
+class DefaultSearchRunner(DiscoverRunner):
     def setup_test_environment(self, **kwargs):
-        super(DefaultRunner, self).setup_test_environment(**kwargs)
+        super(DefaultSearchRunner, self).setup_test_environment(**kwargs)
         self._old_search_indexes = {}
         for name, connection in list(settings.ELASTICSEARCH_CONNECTIONS.items()):
             self._old_search_indexes[name] = connection['INDEX_NAME']
@@ -67,6 +67,6 @@ class DefaultRunner(DiscoverRunner):
             model._search_meta().put_mapping()
 
     def teardown_test_environment(self, **kwargs):
-        super(DefaultRunner, self).teardown_test_environment(**kwargs)
+        super(DefaultSearchRunner, self).teardown_test_environment(**kwargs)
         for name, connection in list(settings.ELASTICSEARCH_CONNECTIONS.items()):
             connection['INDEX_NAME'] = self._old_search_indexes[name]
