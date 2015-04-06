@@ -34,7 +34,7 @@ class TemplateField(SearchField):
 
     def get_from_instance(self, instance):
         context = {'object': self.instance}
-        return render_to_string(template_name, contex)
+        return render_to_string(template_name, context)
 
 class AttributeField(SearchField):
     def __init__(self, attr):
