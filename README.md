@@ -4,33 +4,40 @@ elasticsearch.
 
 
 Features:
+-------
 Several predefined SearchFields for elasticsearch mappings
+
 SearchMixin and Search inner class allows defining model-based indexing
+
 Management commands (create_index and update_index)
+
 Django signal receivers for updating data
 
 Usage:
+-----
 Add ‘elastic_models’ to INSTALLED_APPS
 
 You must define ELASTICSEARCH_CONNECTIONS in your django settings.
 
 For example:
+```
 ELASTICSEARCH_CONNECTIONS = {
     'default': {
         'HOSTS': ['http://localhost:9200',],
         'INDEX_NAME': {{ INDEX_NAME }}
     }
 }
-
-In order to create a test search index you must add to yoursettings.py:
+```
+In order to create a test search index you must add to your settings.py:
+```
 TEST_RUNNER = 'elastic_models.tests.DefaultSearchRunner'
-
+```
 using SearchMixin and Search inner-class:
-
+```
 class Foo(models.Model, SearchMixin):
     name = models.Charield(‘name’,max_length=255)
 
     class Search(SearchMixin.Search):
-        attribute_fields = (‘name’)
-
+        attribute_fields = (‘name’,)
+```
 See comments in models.py for more documentation on use
