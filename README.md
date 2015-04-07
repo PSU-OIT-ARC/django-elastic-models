@@ -41,3 +41,12 @@ class Foo(models.Model, SearchMixin):
         attribute_fields = (‘name’,)
 ```
 See comments in models.py for more documentation on use
+
+Tests:
+-----
+To run the test suite for Python 2 and Python 3:
+
+    make test
+
+It is assumed you have a `virtualenv` in your path, and Elasticsearch running
+on localhost:9200

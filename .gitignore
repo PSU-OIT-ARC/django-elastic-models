@@ -1,2 +1,4 @@
 *.pyc
 *.egg*
+.env2
+.env3
