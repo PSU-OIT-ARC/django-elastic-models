@@ -1,7 +1,8 @@
 from django.core.paginator import InvalidPage
 from django.views.generic import TemplateView
 
-from oro.search.utils import SearchPaginator
+from .utils import SearchPaginator
+
 
 class SearchListView(TemplateView):
     model = None
@@ -17,7 +18,7 @@ class SearchListView(TemplateView):
         self.search = self.get_search()
         context = self.get_context_data()
         return self.render_to_response(context)
-    
+
     def get_search(self):
         return self.model.search[:self.search_limit]
     

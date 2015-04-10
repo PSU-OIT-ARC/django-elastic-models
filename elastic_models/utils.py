@@ -1,5 +1,6 @@
 from django.core.paginator import Paginator, Page
 
+
 class SearchPaginator(Paginator):
     def _get_page(self, *args, **kwargs):
         return SearchPage(*args, **kwargs)
