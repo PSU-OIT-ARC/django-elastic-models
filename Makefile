@@ -14,7 +14,7 @@ test3: .env3
 # remove junk
 clean:
 	rm -rf .env2 .env3
-	find -iname "*.pyc" -or -iname "__pycache__" -delete
+	find . -iname "*.pyc" -or -iname "__pycache__" -delete
 
 # setup a virtualenv for python2
 .env2:
