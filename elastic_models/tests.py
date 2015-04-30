@@ -5,8 +5,9 @@ from django import test
 from django.conf import settings
 from django.test.runner import DiscoverRunner
 
-from .models import SearchMixin
-from .receivers import suspended_updates, get_search_models
+from .indexes import Index, index_registry
+from .fields import StringField
+from .receivers import suspended_updates
 
 
 
@@ -18,8 +19,8 @@ class SearchRunner(DiscoverRunner):
             self._old_search_indexes[name] = connection['INDEX_NAME']
             connection['INDEX_NAME'] = connection['INDEX_NAME'] + "_test"
 
-        for model in get_search_models():
-            model._search_meta().put_mapping()
+        for index in index_registry.values():
+            index.put_mapping()
 
     def teardown_test_environment(self, **kwargs):
         super(SearchRunner, self).teardown_test_environment(**kwargs)
@@ -50,18 +51,59 @@ class SearchTestCase(SearchTestMixin, test.TestCase):
 
 
 
-class TestModel(SearchMixin, models.Model):
+class TestIndex(Index):
+    declared_name = StringField('name')
+    shadowable_name = StringField('name')
+    
+    class Meta():
+        attribute_fields = ('name',)
+
+class TestDerivedIndex(TestIndex):
+    derived_declared_name = StringField('name')
+    shadowable_name = None
+    
+    class Meta():
+        pass
+
+class TestModel(models.Model):
     name = models.CharField(max_length=256)
     modified_on = models.DateTimeField(auto_now=True, auto_now_add=True)
+    
+    search = TestIndex()
+    derived_search = TestDerivedIndex()
 
-    class Search(SearchMixin.Search):
-        attribute_fields = ['name']
+class IndexTestCase(SearchTestCase):
+    def test_field_inheritance(self):
+        self.assertIn('name', TestModel.derived_search.fields.keys())
+        self.assertIn('declared_name', TestModel.derived_search.fields.keys())
+        self.assertIn('derived_declared_name', TestModel.derived_search.fields.keys())
+        self.assertNotIn('shadowable_name', TestModel.derived_search.fields.keys())
+    
+
+class IndexBehaviorTestCase(SearchTestCase):
+    def setUp(self):
+        super(IndexBehaviorTestCase, self).setUp()
+        self.tm1 = TestModel(name="Test1")
+        self.tm1.save()
+        self.tm2 = TestModel(name="Test2")
+        self.tm2.save()
+        self.refresh_index()
+    
+    def test_attribute_field(self):
+        hits = TestModel.search.query("match", name="Test1").execute().hits
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].pk, self.tm1.pk)
+    
+    def test_declared_field(self):
+        hits = TestModel.search.query("match", declared_name="Test1").execute().hits
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].pk, self.tm1.pk)
 
 
 
 class SearchPostSaveTestCase(SearchTestCase):
     def test_post_save(self):
-        self.assertIn(TestModel, get_search_models())
+        self.assertIn(TestModel.search, index_registry.values())
 
         self.assertEqual(TestModel.search.count(), 0)
 
@@ -82,4 +124,3 @@ class SearchPostSaveTestCase(SearchTestCase):
 
         self.refresh_index()
         self.assertEqual(TestModel.search.count(), 1)
-
