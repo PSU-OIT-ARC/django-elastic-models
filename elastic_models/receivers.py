@@ -38,8 +38,8 @@ def update_search_index(sender, **kwargs):
             filter_kwargs = {
                 dependencies[sender]: instance
             }
-            qs = search_meta.get_queryset().filter(**filter_kwargs)
-            search_meta.index_queryset(qs)
+            qs = index.get_queryset().filter(**filter_kwargs)
+            index.index_queryset(qs)
 
 
 SUSPENSION_BUFFER_TIME = timedelta(seconds=10)

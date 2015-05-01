@@ -1,4 +1,5 @@
 from elasticsearch import Elasticsearch
+from elasticsearch_dsl import Q as SQ
 
 from django.db import models
 from django import test
@@ -6,7 +7,7 @@ from django.conf import settings
 from django.test.runner import DiscoverRunner
 
 from .indexes import Index, index_registry
-from .fields import StringField
+from .fields import StringField, NestedObjectListField
 from .receivers import suspended_updates
 
 
@@ -54,9 +55,11 @@ class SearchTestCase(SearchTestMixin, test.TestCase):
 class TestIndex(Index):
     declared_name = StringField('name')
     shadowable_name = StringField('name')
+    tags = NestedObjectListField('tags', attribute_fields=('tag', 'count'))
     
     class Meta():
         attribute_fields = ('name',)
+        dependencies = {'elastic_models.Tag': 'tags'}
 
 class TestDerivedIndex(TestIndex):
     derived_declared_name = StringField('name')
@@ -65,12 +68,23 @@ class TestDerivedIndex(TestIndex):
     class Meta():
         pass
 
+
+
+class Tag(models.Model):
+    tag = models.CharField(max_length=256)
+    count = models.IntegerField()
+    tm = models.ForeignKey('elastic_models.TestModel', related_name="tags")
+    modified_on = models.DateTimeField(auto_now=True, auto_now_add=True)
+    
+
 class TestModel(models.Model):
     name = models.CharField(max_length=256)
     modified_on = models.DateTimeField(auto_now=True, auto_now_add=True)
     
     search = TestIndex()
     derived_search = TestDerivedIndex()
+
+
 
 class IndexTestCase(SearchTestCase):
     def test_field_inheritance(self):
@@ -83,10 +97,15 @@ class IndexTestCase(SearchTestCase):
 class IndexBehaviorTestCase(SearchTestCase):
     def setUp(self):
         super(IndexBehaviorTestCase, self).setUp()
+        
         self.tm1 = TestModel(name="Test1")
         self.tm1.save()
         self.tm2 = TestModel(name="Test2")
         self.tm2.save()
+        
+        self.tm1.tags.create(tag="Tag1", count=10)
+        self.tm1.tags.create(tag="Tag2", count=20)
+        
         self.refresh_index()
     
     def test_attribute_field(self):
@@ -98,8 +117,19 @@ class IndexBehaviorTestCase(SearchTestCase):
         hits = TestModel.search.query("match", declared_name="Test1").execute().hits
         self.assertEqual(len(hits), 1)
         self.assertEqual(hits[0].pk, self.tm1.pk)
-
-
+    
+    def test_nested_field(self):
+        nested_query = SQ("match", tags__tag = "Tag1")
+        nested_query += SQ("match", tags__count=10)
+        search = TestModel.search.query("nested", path="tags", query=nested_query)
+        hits = search.execute().hits
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].pk, self.tm1.pk)
+        
+        nested_query = SQ("match", tags__tag = "Tag1")
+        nested_query += SQ("match", tags__count=20)
+        hits = TestModel.search.query("nested", path="tags", query=nested_query).execute().hits
+        self.assertFalse(hits)
 
 class SearchPostSaveTestCase(SearchTestCase):
     def test_post_save(self):

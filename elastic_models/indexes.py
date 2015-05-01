@@ -9,17 +9,16 @@ from elasticsearch import Elasticsearch, NotFoundError
 from elasticsearch.helpers import bulk
 import elasticsearch_dsl as dsl
 
-from .fields import FieldMappingMixin
+from .fields import FieldMappingMixin, FieldMappingOptions
 
 index_registry = {}
 
-class IndexOptions(object):
+class IndexOptions(FieldMappingOptions):
     def __init__(self, sources=[]):
+        super(IndexOptions, self).__init__(sources=sources)
+        
         self.doc_type = self.get_value(sources, 'doc_type', None)
         self.connection = self.get_value(sources, 'connection', 'default')
-        self.mapping = self.get_value(sources, 'mapping', None)
-        self.attribute_fields = self.get_value(sources, 'attribute_fields', ())
-        self.template_fields = self.get_value(sources, 'template_fields', ())
         self.index_by = self.get_value(sources, 'index_by', 1000)
         self.date_field = self.get_value(sources, 'date_field', 'modified_on')
 
@@ -30,15 +29,7 @@ class IndexOptions(object):
         # so it would have dependencies = {Author: 'author'}.
         # When an Author is saved, this causes BlogPost's returned by the query
         # BlogPost.objects.filter(author=instance) to be re-indexed.
-        self.dependencies = getattr(sources, 'dependencies', {})
-
-    def get_value(self, sources, name, default):
-        for source in sources:
-            try:
-                return getattr(source, name)
-            except AttributeError:
-                continue
-        return default
+        self.dependencies = self.get_value(sources, 'dependencies', {})
 
 
 class Index(FieldMappingMixin):
