@@ -23,10 +23,65 @@ class SearchField(object):
         return {
             'type': self.mapping_type
         }
-
+    
+    def get_field_settings(self):
+        return {}
+    
     def get_from_instance(self, instance):
         return None
 
+
+class AnalysisMixin(SearchField):
+    
+    def get_analysis_base_name(self):
+        return "field_%d" % id(self)
+    
+    def get_analyzer_name(self):
+        return self.get_analysis_base_name() + "_analyzer"
+    
+    def get_analyzer(self):
+        return None
+    
+    def get_analyzers(self):
+        analyzer = self.get_analyzer()
+        
+        if analyzer is not None:
+            return {self.get_analyzer_name(): analyzer}
+        return None
+    
+    def get_tokenizer_name(self):
+        return self.get_analysis_base_name() + "_tokenizer"
+    
+    def get_tokenizer(self):
+        return None
+    
+    def get_tokenizers(self):
+        tokenizer = self.get_tokenizer()
+        
+        if tokenizer is not None:
+            return {self.get_tokenizer_name(): tokenizer}
+        return None
+    
+    def get_field_mapping(self):
+        mapping = super(AnalysisMixin, self).get_field_mapping()
+        mapping['analyzer'] = self.get_analyzer_name()
+        return mapping
+    
+    def get_field_settings(self):
+        analysis = {}
+        
+        analyzers = self.get_analyzers()
+        if analyzers is not None:
+            analysis['analyzer'] = analyzers
+        
+        tokenizers = self.get_tokenizers()
+        if tokenizers is not None:
+            analysis['tokenizer'] = tokenizers
+        
+        return merge([
+            super(AnalysisMixin, self).get_field_settings(),
+            {'analysis': analysis}
+        ])
 
 
 class TemplateField(SearchField):
@@ -71,6 +126,36 @@ class ListMixin(AttributeField):
 class StringField(AttributeField):
     def prepare(self, value):
         return six.text_type(value)
+
+class NGramField(AnalysisMixin, StringField):
+    min_gram = 2
+    max_gram = 4
+    
+    def __init__(self, *args, **kwargs):
+        if 'min_gram' in kwargs:
+            self.min_gram = kwargs.pop('min_gram')
+        
+        if 'max_gram' in kwargs:
+            self.max_gram = kwargs.pop('max_gram')
+        
+        super(NGramField, self).__init__(*args, **kwargs)
+    
+    def get_analysis_base_name(self):
+        return "ngram_%d_%d" % (self.min_gram, self.max_gram)
+    
+    def get_analyzer(self):
+        return {
+            'tokenizer': self.get_tokenizer_name(),
+            'filter': ['lowercase'],
+        }
+    
+    def get_tokenizer(self):
+        return {
+            'type': 'nGram',
+            'min_gram': self.min_gram,
+            'max_gram': self.max_gram,
+            'token_chars': [ "letter", "digit" ]
+        }
 
 class StringListField(ListMixin, StringField):
     pass
@@ -229,7 +314,10 @@ class FieldMappingMixin(six.with_metaclass(DeclarativeSearchFieldMetaclass)):
             'properties': properties
         }
         return mapping
-
+    
+    def get_settings(self):
+        return merge([f.get_field_settings() for f in self.fields.values()])
+    
     def prepare(self, instance):
         return dict((name, field.get_from_instance(instance))
                     for name, field in self.fields.items())

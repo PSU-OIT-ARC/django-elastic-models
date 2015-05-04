@@ -1,15 +1,19 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
+import logging
+
 from django.conf import settings
 from django.db.models.loading import get_model
 from django.utils import six
 
-from elasticsearch import Elasticsearch, NotFoundError
+from elasticsearch import Elasticsearch, NotFoundError, exceptions
 from elasticsearch.helpers import bulk
 import elasticsearch_dsl as dsl
 
 from .fields import FieldMappingMixin, FieldMappingOptions
+
+logger = logging.getLogger(__name__)
 
 index_registry = {}
 
@@ -71,26 +75,37 @@ class Index(FieldMappingMixin):
         s = s.index(self.get_index())
         s = s.doc_type(self.get_doc_type())
         return s
-
-
-
+    
     def put_mapping(self):
         mapping = self.get_mapping()
+        settings = self.get_settings()
+        doc_type = self.get_doc_type()
         index = self.get_index()
         es = self.get_es()
-
-        if not es.indices.exists(index=index):
-            es.indices.create(index=index)
-
-        try:
-            es.indices.delete_mapping(index=self.get_index(), doc_type=self.get_doc_type())
-        except NotFoundError:
-            pass
-
-        es.indices.put_mapping(index=self.get_index(), doc_type=self.get_doc_type(), body=mapping)
-
-
-
+        
+        if not es.indices.exists(index):
+            logger.debug("Creating index '%s'" % (index))
+            es.indices.create(index)
+        else:
+            try:
+                logger.debug("Removing mapping for index '%s' and doc type '%s'" % (index, doc_type))
+                es.indices.delete_mapping(index, doc_type)
+            except (exceptions.NotFoundError, exceptions.AuthorizationException):
+                logger.debug("Mapping doesn't exist for index '%s'" % (index))
+        
+        if settings:
+            try:
+                logger.debug("Updating settings for index '%s': %s" % (index, settings))
+                es.indices.close(index)
+                es.indices.put_settings(settings, index)
+            finally:
+                es.indices.open(index)
+        else:
+            logger.debug("Not settings to update for index '%s'" % (index))
+        
+        logger.debug("Updating mapping for index '%s' and doc type '%s': %s" % (index, doc_type, mapping))
+        es.indices.put_mapping(doc_type, mapping, index=index)
+    
     def index_instance(self, instance):
         self.get_es().index(
             index=self.get_index(),

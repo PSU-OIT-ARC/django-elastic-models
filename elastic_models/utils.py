@@ -1,3 +1,5 @@
+from itertools import chain
+
 from django.core.paginator import Paginator, Page
 
 
@@ -32,7 +34,7 @@ def merge(items, overwrite=False, path=()):
 
     if all(isinstance(i, dict) for i in items):
         # Merge dictionaries by recursively merging each key.
-        keys = set(chain.from_iterable(six.iterkeys(i) for i in items))
+        keys = set(chain.from_iterable(i.keys() for i in items))
         return dict((k, merge([i[k] for i in items if k in i],
                               overwrite,
                               path + (k,)))
