@@ -24,7 +24,7 @@ For example:
     ELASTICSEARCH_CONNECTIONS = {
         'default': {
             'HOSTS': ['http://localhost:9200',],
-            'INDEX_NAME': 'my_index'
+            'INDEX_NAME': 'my_index_%s'
         }
     }
 
@@ -65,8 +65,17 @@ For example, if you wanted to index `number` as a string rather than an integer:
 
         search = FooIndex()
 
+Once you have added indexes to your models, run `manage.py create_index` to add
+the indexes and mappings to elasticsearch and index the current data.
 
-See comments in models.py for more documentation on use
+To search your data, access the name that you gave your index when you assigned
+it to the model.  The object you get back behaves like a `Search` object from
+`elasticsearch_dsl`:
+
+    Foo.search.query("match", name="bar").execute()
+
+See the [elasticsearch_dsl documentation](http://elasticsearch-dsl.readthedocs.org/)
+for more information on how to create and execute queries.
 
 Tests:
 -----

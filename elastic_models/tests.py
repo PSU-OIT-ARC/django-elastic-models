@@ -7,7 +7,8 @@ from django.conf import settings
 from django.test.runner import DiscoverRunner
 
 from .indexes import Index, index_registry
-from .fields import StringField, NestedObjectListField, NGramField
+from .fields import StringField, NestedObjectListField
+from .analyzers import ngram
 from .receivers import suspended_updates
 
 
@@ -36,14 +37,14 @@ class SearchTestMixin(test.SimpleTestCase):
 
         for name, connection in list(settings.ELASTICSEARCH_CONNECTIONS.items()):
             es = Elasticsearch(connection['HOSTS'])
-            es.delete_by_query(index=connection['INDEX_NAME'], body={'query': {'match_all': {}}})
+            es.delete_by_query(index=connection['INDEX_NAME'] % "*", body={'query': {'match_all': {}}})
 
         self.refresh_index()
 
     def refresh_index(self):
         for name, connection in list(settings.ELASTICSEARCH_CONNECTIONS.items()):
             es = Elasticsearch(connection['HOSTS'])
-            es.indices.refresh(index=connection['INDEX_NAME'])
+            es.indices.refresh(index=connection['INDEX_NAME'] % "*")
 
 
 
@@ -56,7 +57,7 @@ class TestIndex(Index):
     declared_name = StringField('name')
     shadowable_name = StringField('name')
     tags = NestedObjectListField('tags', attribute_fields=('tag', 'count'))
-    ngram_name = NGramField('name')
+    ngram_name = StringField('name', analyzer=ngram())
     
     class Meta():
         attribute_fields = ('name',)

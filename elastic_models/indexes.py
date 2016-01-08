@@ -29,7 +29,7 @@ class IndexOptions(FieldMappingOptions):
         # A dictionary whose keys are other models that this model's index
         # depends on, and whose values are query set paramaters for this model
         # to select the instances that depend on an instance of the key model.
-        # For example, the index for BlogPost might use information from Author,
+        # For example, the index for BlogPost might use inform;:ation from Author,
         # so it would have dependencies = {Author: 'author'}.
         # When an Author is saved, this causes BlogPost's returned by the query
         # BlogPost.objects.filter(author=instance) to be re-indexed.
@@ -49,7 +49,8 @@ class Index(FieldMappingMixin):
         self.fields = self.get_fields()
 
     def get_index(self):
-        return settings.ELASTICSEARCH_CONNECTIONS[self._meta.connection]['INDEX_NAME']
+        index_name = settings.ELASTICSEARCH_CONNECTIONS[self._meta.connection]['INDEX_NAME']
+        return index_name % (self.get_doc_type(),)
 
     def get_doc_type(self):
         if self._meta.doc_type is not None:
@@ -76,22 +77,27 @@ class Index(FieldMappingMixin):
         s = s.doc_type(self.get_doc_type())
         return s
     
+    def get_mapping(self):
+        doc_type = self.get_doc_type()
+        mapping = dsl.Mapping(doc_type)
+        self.add_fields_to_mapping(mapping)
+        return mapping
+    
     def put_mapping(self):
         mapping = self.get_mapping()
         settings = self.get_settings()
-        doc_type = self.get_doc_type()
-        index = self.get_index()
         es = self.get_es()
         
-        if not es.indices.exists(index):
-            logger.debug("Creating index '%s'" % (index))
-            es.indices.create(index)
-        else:
-            try:
-                logger.debug("Removing mapping for index '%s' and doc type '%s'" % (index, doc_type))
-                es.indices.delete_mapping(index, doc_type)
-            except (exceptions.NotFoundError, exceptions.AuthorizationException):
-                logger.debug("Mapping doesn't exist for index '%s'" % (index))
+        doc_type = mapping.doc_type
+        index = self.get_index()
+        
+        
+        if es.indices.exists(index):
+            logger.debug("Removing index '%s'" % (index))
+            es.indices.delete(index)
+        
+        logger.debug("Creating index '%s' and mapping '%s'" % (index, doc_type))
+        mapping.save(index, using=es)
         
         if settings:
             try:
@@ -102,9 +108,6 @@ class Index(FieldMappingMixin):
                 es.indices.open(index)
         else:
             logger.debug("Not settings to update for index '%s'" % (index))
-        
-        logger.debug("Updating mapping for index '%s' and doc type '%s': %s" % (index, doc_type, mapping))
-        es.indices.put_mapping(doc_type, mapping, index=index)
     
     def index_instance(self, instance):
         self.get_es().index(

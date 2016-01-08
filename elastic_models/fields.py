@@ -2,86 +2,29 @@ from django.template.loader import render_to_string
 from django.db import models
 from django.utils import six
 
+import elasticsearch_dsl as dsl
+
 from .utils import merge, getattr_or_callable
 
 class SearchField(object):
-    mapping = None
-    mapping_type = 'string'
-    #TODO: Add index, analyzer, etc.
-
+    dsl_field = dsl.String
+    
     # Tracks each time a Field instance is created. Used to retain order.
     creation_counter = 0
-
-    def __init__(self):
+    
+    def __init__(self, **kwargs):
         self.creation_counter = SearchField.creation_counter
         SearchField.creation_counter += 1
+        self.field_kwargs = kwargs
 
-    def get_field_mapping(self):
-        if self.mapping is not None:
-            return mapping
-
-        return {
-            'type': self.mapping_type
-        }
+    def get_dsl_field(self):
+        return self.dsl_field(**self.field_kwargs)
     
     def get_field_settings(self):
         return {}
     
     def get_from_instance(self, instance):
         return None
-
-
-class AnalysisMixin(SearchField):
-    
-    def get_analysis_base_name(self):
-        return "field_%d" % id(self)
-    
-    def get_analyzer_name(self):
-        return self.get_analysis_base_name() + "_analyzer"
-    
-    def get_analyzer(self):
-        return None
-    
-    def get_analyzers(self):
-        analyzer = self.get_analyzer()
-        
-        if analyzer is not None:
-            return {self.get_analyzer_name(): analyzer}
-        return None
-    
-    def get_tokenizer_name(self):
-        return self.get_analysis_base_name() + "_tokenizer"
-    
-    def get_tokenizer(self):
-        return None
-    
-    def get_tokenizers(self):
-        tokenizer = self.get_tokenizer()
-        
-        if tokenizer is not None:
-            return {self.get_tokenizer_name(): tokenizer}
-        return None
-    
-    def get_field_mapping(self):
-        mapping = super(AnalysisMixin, self).get_field_mapping()
-        mapping['analyzer'] = self.get_analyzer_name()
-        return mapping
-    
-    def get_field_settings(self):
-        analysis = {}
-        
-        analyzers = self.get_analyzers()
-        if analyzers is not None:
-            analysis['analyzer'] = analyzers
-        
-        tokenizers = self.get_tokenizers()
-        if tokenizers is not None:
-            analysis['tokenizer'] = tokenizers
-        
-        return merge([
-            super(AnalysisMixin, self).get_field_settings(),
-            {'analysis': analysis}
-        ])
 
 
 class TemplateField(SearchField):
@@ -94,10 +37,9 @@ class TemplateField(SearchField):
         return render_to_string(template_name, context)
 
 
-
 class AttributeField(SearchField):
-    def __init__(self, attr):
-        super(AttributeField, self).__init__()
+    def __init__(self, attr, **kwargs):
+        super(AttributeField, self).__init__(**kwargs)
         self.path = attr.split(".")
     
     def get_attr_from_instance(self, instance):
@@ -115,7 +57,12 @@ class AttributeField(SearchField):
         value = self.get_attr_from_instance(instance)
         return self.prepare(value)
 
+
 class ListMixin(AttributeField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('multi', True)
+        super(ListMixin, self).__init__(*args, **kwargs)
+    
     def get_from_instance(self, instance):
         values = self.get_attr_from_instance(instance)
         if hasattr(values, 'all'):
@@ -127,53 +74,23 @@ class StringField(AttributeField):
     def prepare(self, value):
         return six.text_type(value)
 
-class NGramField(AnalysisMixin, StringField):
-    min_gram = 2
-    max_gram = 4
-    
-    def __init__(self, *args, **kwargs):
-        if 'min_gram' in kwargs:
-            self.min_gram = kwargs.pop('min_gram')
-        
-        if 'max_gram' in kwargs:
-            self.max_gram = kwargs.pop('max_gram')
-        
-        super(NGramField, self).__init__(*args, **kwargs)
-    
-    def get_analysis_base_name(self):
-        return "ngram_%d_%d" % (self.min_gram, self.max_gram)
-    
-    def get_analyzer(self):
-        return {
-            'tokenizer': self.get_tokenizer_name(),
-            'filter': ['lowercase'],
-        }
-    
-    def get_tokenizer(self):
-        return {
-            'type': 'nGram',
-            'min_gram': self.min_gram,
-            'max_gram': self.max_gram,
-            'token_chars': [ "letter", "digit" ]
-        }
-
 class StringListField(ListMixin, StringField):
     pass
 
 class IntegerField(AttributeField):
-    mapping_type = 'integer'
+    dsl_field = dsl.Integer
 
 class IntegerListField(ListMixin, IntegerField):
     pass
 
 class BooleanField(AttributeField):
-    mapping_type = 'boolean'
+    dsl_field = dsl.Boolean
 
 class BooleanListField(ListMixin, BooleanField):
     pass
 
 class DateField(AttributeField):
-    mapping_type = 'date'
+    dsl_field = dsl.Date
 
 class DateListField(ListMixin, DateField):
     pass
@@ -306,14 +223,10 @@ class FieldMappingMixin(six.with_metaclass(DeclarativeSearchFieldMetaclass)):
         fields.update(getattr(self, '_other_fields', {}))
 
         return fields
-
-    def get_mapping(self):
-        properties = dict((name, field.get_field_mapping())
-                          for name, field in list(self.fields.items()))
-        mapping = {
-            'properties': properties
-        }
-        return mapping
+    
+    def add_fields_to_mapping(self, mapping):
+        for name, field in self.fields.items():
+            mapping.field(name, field.get_dsl_field())
     
     def get_settings(self):
         return merge([f.get_field_settings() for f in self.fields.values()])
@@ -323,7 +236,7 @@ class FieldMappingMixin(six.with_metaclass(DeclarativeSearchFieldMetaclass)):
                     for name, field in self.fields.items())
 
 class ObjectField(FieldMappingMixin, AttributeField):
-    mapping_type = 'object'
+    dsl_field = dsl.Object
     
     def __init__(self, *args, **kwargs):
         if 'model' in kwargs:
@@ -332,10 +245,10 @@ class ObjectField(FieldMappingMixin, AttributeField):
         super(ObjectField, self).__init__(*args, **kwargs)
         self.fields = self.get_fields()
     
-    def get_field_mapping(self):
-        mapping = super(ObjectField, self).get_field_mapping()
-        mapping.update(self.get_mapping())
-        return mapping
+    def get_dsl_field(self):
+        field = super(ObjectField, self).get_dsl_field()
+        self.add_fields_to_mapping(field)
+        return field
 
 class NestedObjectListField(ListMixin, ObjectField):
-    mapping_type = 'nested'
+    dsl_field = dsl.Nested
