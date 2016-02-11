@@ -15,7 +15,7 @@ Django signal receivers for updating data
 
 Usage:
 ------
-Add `‘elastic_models’` to `INSTALLED_APPS`
+Add `elastic_models` to `INSTALLED_APPS`
 
 You must define `ELASTICSEARCH_CONNECTIONS` in your django settings.
 
