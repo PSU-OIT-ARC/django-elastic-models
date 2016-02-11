@@ -4,7 +4,7 @@ from elastic_models.management.commands import IndexCommand
 
 class Command(IndexCommand):
     def handle(self, *args, **options):
-        models = self.get_models(args)
+        indexes = self.get_indexes(args)
 
         since = None
         if options['since']:
@@ -14,10 +14,9 @@ class Command(IndexCommand):
         if options['limit']:
             limit = int(options['limit'])
 
-        for model in models:
-            search = model._search_meta()
-            qs = search.get_qs(since=since, limit=limit)
-            print("Creating mapping for %s" % model.__name__)
-            search.put_mapping()
-            print("Indexing %d %s objects" % (qs.count(), model.__name__))
-            search.index_qs(qs)
+        for index in indexes:
+            qs = index.get_filtered_queryset(since=since, limit=limit)
+            print("Creating mapping for %s.%s" % (index.model.__name__, index.name))
+            index.put_mapping()
+            print("Indexing %d %s objects" % (qs.count(), index.model.__name__))
+            index.index_queryset(qs)

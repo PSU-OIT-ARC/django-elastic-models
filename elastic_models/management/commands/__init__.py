@@ -4,7 +4,7 @@ import re
 
 from django.core.management.base import BaseCommand
 
-from elastic_models.receivers import get_search_models
+from elastic_models.indexes import index_registry
 
 class IndexCommand(BaseCommand):
     option_list = BaseCommand.option_list + (
@@ -41,11 +41,14 @@ class IndexCommand(BaseCommand):
 
         raise ValueError("%s could not be interpereted as a datetime" % options['since'])
 
-    def get_models(self, args):
-        models = get_search_models()
+    def get_indexes(self, args):
+        indexes = index_registry.values()
         if args:
-            models = [m for m in models if
-                        m._meta.app_label in args or
-                        '%s.%s' % (m._meta.app_label, m._meta.model_name) in args]
+            indexes = [i for i in indexes if
+                        i.model._meta.app_label in args or
+                        '%s.%s' % (i.model._meta.app_label, i.model._meta.model_name) in args or
+                        '%s.%s.%s' % (i.model._meta.app_label,
+                                      i.model._meta.model_name,
+                                      i.name) in args]
 
-        return models
+        return indexes
