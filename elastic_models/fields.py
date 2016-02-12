@@ -224,6 +224,12 @@ class FieldMappingMixin(six.with_metaclass(DeclarativeSearchFieldMetaclass)):
 
         return fields
     
+    @property
+    def fields(self):
+        if not hasattr(self, '_em_fields'):
+            self._em_fields = self.get_fields()
+        return self._em_fields
+    
     def add_fields_to_mapping(self, mapping):
         for name, field in self.fields.items():
             mapping.field(name, field.get_dsl_field())
@@ -243,7 +249,6 @@ class ObjectField(FieldMappingMixin, AttributeField):
             self.model = kwargs.pop('model')
         
         super(ObjectField, self).__init__(*args, **kwargs)
-        self.fields = self.get_fields()
     
     def get_dsl_field(self):
         field = super(ObjectField, self).get_dsl_field()

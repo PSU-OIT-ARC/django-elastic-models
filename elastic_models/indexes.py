@@ -46,8 +46,6 @@ class Index(FieldMappingMixin):
 
         index_registry[(model, name)] = self
 
-        self.fields = self.get_fields()
-
     def get_index(self):
         index_name = settings.ELASTICSEARCH_CONNECTIONS[self._meta.connection]['INDEX_NAME']
         return index_name % (self.get_doc_type(),)
