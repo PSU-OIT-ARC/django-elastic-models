@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 import logging
+import threading
 
 from django.conf import settings
 from django.db.models.loading import get_model
@@ -16,6 +17,7 @@ from .fields import FieldMappingMixin, FieldMappingOptions
 logger = logging.getLogger(__name__)
 
 index_registry = {}
+_connection_cache = threading.local()
 
 class IndexOptions(FieldMappingOptions):
     def __init__(self, sources=[]):
@@ -67,7 +69,12 @@ class Index(FieldMappingMixin):
         return dependencies
 
     def get_es(self):
-        return Elasticsearch(settings.ELASTICSEARCH_CONNECTIONS[self._meta.connection]['HOSTS'])
+        if not hasattr(_connection_cache, self._meta.connection):
+            hosts = settings.ELASTICSEARCH_CONNECTIONS[self._meta.connection]['HOSTS']
+            setattr(_connection_cache, self._meta.connection,
+                    Elasticsearch(hosts=hosts))
+        
+        return getattr(_connection_cache, self._meta.connection)
 
     def get_search(self):
         s = dsl.Search(using=self.get_es())
