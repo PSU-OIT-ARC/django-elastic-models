@@ -5,7 +5,7 @@ import logging
 import threading
 
 from django.conf import settings
-from django.db.models.loading import get_model
+from django.apps import apps
 from django.utils import six
 
 from elasticsearch import Elasticsearch, NotFoundError, exceptions
@@ -63,7 +63,7 @@ class Index(FieldMappingMixin):
         for model, query in dependencies.items():
             if isinstance(model, six.string_types):
                 (app_name, model_name) = model.split('.')
-                model_cls = get_model(app_name, model_name)
+                model_cls = apps.get_model(app_name, model_name)
                 dependencies.pop(model)
                 dependencies[model_cls] = query
         return dependencies
