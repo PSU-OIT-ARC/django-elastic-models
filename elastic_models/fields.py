@@ -33,8 +33,8 @@ class TemplateField(SearchField):
         self.template_name = template_name
 
     def get_from_instance(self, instance):
-        context = {'object': self.instance}
-        return render_to_string(template_name, context)
+        context = {'object': instance}
+        return render_to_string(self.template_name, context)
 
 
 class AttributeField(SearchField):

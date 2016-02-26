@@ -24,7 +24,17 @@ settings.configure(
             'HOSTS': ['http://localhost:9200'],
             'INDEX_NAME': 'elastic_models_%s',
         }
-    }
+    },
+    TEMPLATES=[{
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'OPTIONS': {
+            'loaders': [
+                ('django.template.loaders.locmem.Loader', {
+                    'test_index_template_name.txt': 'Template_{{ object.name }}',
+                }),
+            ],
+        },
+    }]
 )
 
 if django.VERSION[:2] >= (1, 7):
@@ -32,9 +42,10 @@ if django.VERSION[:2] >= (1, 7):
 else:
     setup = lambda: None
 
+setup()
+
 from elastic_models.tests import SearchRunner
 
-setup()
 test_runner = SearchRunner(verbosity=1)
 
 failures = test_runner.run_tests(['elastic_models', ])

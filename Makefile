@@ -24,5 +24,5 @@ clean:
 # setup a virtualenv for python3 and install pip
 .env3:
 	python3 -m venv .env3
-	curl https://raw.githubusercontent.com/pypa/pip/master/contrib/get-pip.py | .env3/bin/python
+	curl https://bootstrap.pypa.io/get-pip.py | .env3/bin/python
 	.env3/bin/pip install -e .[test]

@@ -7,7 +7,7 @@ from django.conf import settings
 from django.test.runner import DiscoverRunner
 
 from .indexes import Index, index_registry
-from .fields import StringField, NestedObjectListField
+from .fields import StringField, NestedObjectListField, TemplateField
 from .analyzers import ngram
 from .receivers import suspended_updates
 
@@ -58,6 +58,7 @@ class TestIndex(Index):
     shadowable_name = StringField('name')
     tags = NestedObjectListField('tags', attribute_fields=('tag', 'count'))
     ngram_name = StringField('name', analyzer=ngram())
+    template_name = TemplateField('test_index_template_name.txt')
     
     class Meta():
         attribute_fields = ('name',)
@@ -140,6 +141,11 @@ class IndexBehaviorTestCase(SearchTestCase):
         self.assertEqual(hits[1].pk, self.tm2.pk)
         
         hits = TestModel.search.query("match", ngram_name="Tort1").execute().hits
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0].pk, self.tm1.pk)
+    
+    def test_template_field(self):
+        hits = TestModel.search.query("match", template_name="Template_Test1").execute().hits
         self.assertEqual(len(hits), 1)
         self.assertEqual(hits[0].pk, self.tm1.pk)
 
