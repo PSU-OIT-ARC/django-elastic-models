@@ -115,12 +115,20 @@ class Index(FieldMappingMixin):
             logger.debug("Not settings to update for index '%s'" % (index))
     
     def index_instance(self, instance):
-        self.get_es().index(
-            index=self.get_index(),
-            doc_type=self.get_doc_type(),
-            id=instance.pk,
-            body=self.prepare(instance)
-        )
+        if self.should_index(instance):
+            self.get_es().index(
+                index=self.get_index(),
+                doc_type=self.get_doc_type(),
+                id=instance.pk,
+                body=self.prepare(instance)
+            )
+        else:
+            logger.debug("Un-indexing instance (DB says it it not to be indexed).")
+            self.get_es().delete(
+                index=self.get_index(),
+                doc_type=self.get_doc_type(),
+                id=instance.pk,
+                ignore=404)
 
     def index_queryset(self, qs):
         index = self.get_index()
