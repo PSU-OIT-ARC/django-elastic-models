@@ -2,12 +2,17 @@ import logging
 from contextlib import contextmanager
 from datetime import timedelta
 
+import six
+
 from django.db.models import signals
 from django.db import models
 from django.dispatch import receiver
 from django.utils.timezone import now
 
 from .indexes import index_registry
+from .utils import merge
+
+logger = logging.getLogger(__name__)
 
 #A list of sets to allow nested/concurent use
 suspended_models = []
@@ -32,18 +37,15 @@ def get_dependents(instance):
         if type(instance) in dependencies:
             filter_kwargs = {dependencies[type(instance)]: instance}
             qs = index.model.objects.filter(**filter_kwargs)
-            dependents[index] = list(qs.values("pk"))
+            dependents[index] = list(qs.values_list("pk", flat=True))
 
     return dependents
 
-@receiver(signals.pre_save)
-@receiver(signals.pre_delete)
+
 def collect_dependents(sender, **kwargs):
     instance = kwargs['instance']
     instance._search_dependents = get_dependents(instance)
 
-@receiver(signals.post_delete)
-@receiver(signals.post_save)
 def update_search_index(sender, **kwargs):
     """
     TBD
@@ -52,7 +54,7 @@ def update_search_index(sender, **kwargs):
     instance = kwargs['instance']
     indexes = get_indexes_for_model(sender)
     
-    if _is_suspended(sender):
+    if is_suspended(sender):
         logger.debug("Skipping indexing for '%s'" % (sender))
         return
 
@@ -64,33 +66,21 @@ def update_search_index(sender, **kwargs):
         for record in index.model.objects.filter(pk__in=pks).iterator():
             index.index_instance(record)
 
-@receiver(signals.m2m_changed)
 def handle_m2m(sender, **kwargs):
     if kwargs['action'].startswith("pre_"):
         collect_dependents(type(kwargs['instance']), **kwargs)
     else:
         update_search_index(type(kwargs['instance']), **kwargs)
 
+def register_receivers():
+    signals.pre_save.connect(collect_dependents, dispatch_uid="elastic_models_collect_dependents")
+    signals.pre_delete.connect(collect_dependents, dispatch_uid="elastic_models_collect_dependents")
+    
+    signals.post_delete.connect(update_search_index, dispatch_uid="elastic_models_update_search_index")
+    signals.post_save.connect(update_search_index, dispatch_uid="elastic_models_update_search_index")
+    
+    signals.m2m_changed.connect(handle_m2m, dispatch_uid="elastic_models_handle_m2m")
 
-# @receiver(post_save)
-# def update_search_index(sender, **kwargs):
-#     if is_suspended(sender):
-#         return
-#
-#     instance = kwargs['instance']
-#
-#     for index in index_registry.values():
-#         if issubclass(sender, index.model) and index.should_index(instance):
-#             index.index_instance(instance)
-#             continue
-#
-#         dependencies = index.get_dependencies()
-#         if sender in dependencies:
-#             filter_kwargs = {
-#                 dependencies[sender]: instance
-#             }
-#             qs = index.get_queryset().filter(**filter_kwargs)
-#             index.index_queryset(qs)
 
 
 SUSPENSION_BUFFER_TIME = timedelta(seconds=10)
