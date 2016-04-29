@@ -18,8 +18,8 @@ class SearchRunner(DiscoverRunner):
         super(SearchRunner, self).setup_test_environment(**kwargs)
         self._old_search_indexes = {}
         for name, connection in list(settings.ELASTICSEARCH_CONNECTIONS.items()):
-            self._old_search_indexes[name] = connection['INDEX_NAME']
-            connection['INDEX_NAME'] = connection['INDEX_NAME'] + "_test"
+            self._old_search_indexes[name] = connection['INDEX_PREFIX']
+            connection['INDEX_PREFIX'] = connection['INDEX_PREFIX'] + "_test"
 
         for index in index_registry.values():
             index.put_mapping()
@@ -27,7 +27,7 @@ class SearchRunner(DiscoverRunner):
     def teardown_test_environment(self, **kwargs):
         super(SearchRunner, self).teardown_test_environment(**kwargs)
         for name, connection in list(settings.ELASTICSEARCH_CONNECTIONS.items()):
-            connection['INDEX_NAME'] = self._old_search_indexes[name]
+            connection['INDEX_PREFIX'] = self._old_search_indexes[name]
 
 
 
@@ -37,14 +37,14 @@ class SearchTestMixin(test.SimpleTestCase):
 
         for name, connection in list(settings.ELASTICSEARCH_CONNECTIONS.items()):
             es = Elasticsearch(connection['HOSTS'])
-            es.delete_by_query(index=connection['INDEX_NAME'] % "*", body={'query': {'match_all': {}}})
+            es.delete_by_query(index=connection['INDEX_PREFIX'] + "_*", body={'query': {'match_all': {}}})
 
         self.refresh_index()
 
     def refresh_index(self):
         for name, connection in list(settings.ELASTICSEARCH_CONNECTIONS.items()):
             es = Elasticsearch(connection['HOSTS'])
-            es.indices.refresh(index=connection['INDEX_NAME'] % "*")
+            es.indices.refresh(index=connection['INDEX_PREFIX'] + "_*")
 
 
 

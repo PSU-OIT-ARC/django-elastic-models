@@ -22,7 +22,7 @@ settings.configure(
     ELASTICSEARCH_CONNECTIONS={
         'default': {
             'HOSTS': ['http://localhost:9200'],
-            'INDEX_NAME': 'elastic_models_%s',
+            'INDEX_PREFIX': 'elastic_models',
         }
     },
     TEMPLATES=[{

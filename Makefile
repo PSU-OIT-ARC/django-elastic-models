@@ -18,7 +18,7 @@ clean:
 
 # setup a virtualenv for python2
 .env2:
-	virtualenv --no-site-packages -p python .env2
+	virtualenv --no-site-packages -p python2 .env2
 	.env2/bin/pip install -e .[test]
 
 # setup a virtualenv for python3 and install pip

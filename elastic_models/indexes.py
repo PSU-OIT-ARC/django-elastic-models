@@ -49,8 +49,8 @@ class Index(FieldMappingMixin):
         index_registry[(model, name)] = self
 
     def get_index(self):
-        index_name = settings.ELASTICSEARCH_CONNECTIONS[self._meta.connection]['INDEX_NAME']
-        return index_name % (self.get_doc_type(),)
+        index_prefix = settings.ELASTICSEARCH_CONNECTIONS[self._meta.connection]['INDEX_PREFIX']
+        return "%s_%s" % (index_prefix, self.get_doc_type())
 
     def get_doc_type(self):
         if self._meta.doc_type is not None:
